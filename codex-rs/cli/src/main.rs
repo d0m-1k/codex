@@ -39,6 +39,7 @@ mod app_cmd;
 #[cfg(target_os = "macos")]
 mod desktop_app;
 mod mcp_cmd;
+mod status;
 #[cfg(not(windows))]
 mod wsl_paths;
 
@@ -96,6 +97,9 @@ enum Subcommand {
 
     /// Manage login.
     Login(LoginCommand),
+
+    /// Show account rate limits.
+    Status(StatusCommand),
 
     /// Remove stored authentication credentials.
     Logout(LogoutCommand),
@@ -319,6 +323,16 @@ enum LoginSubcommand {
 struct LogoutCommand {
     #[clap(skip)]
     config_overrides: CliConfigOverrides,
+}
+
+#[derive(Debug, Parser)]
+struct StatusCommand {
+    #[clap(skip)]
+    config_overrides: CliConfigOverrides,
+
+    /// Print machine-readable JSON output.
+    #[arg(long = "json", default_value_t = false)]
+    json: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -820,6 +834,18 @@ async fn cli_main(arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
                     }
                 }
             }
+        }
+        Some(Subcommand::Status(mut status_cli)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "status",
+            )?;
+            prepend_config_flags(
+                &mut status_cli.config_overrides,
+                root_config_overrides.clone(),
+            );
+            status::run_status(status_cli.config_overrides, status_cli.json).await;
         }
         Some(Subcommand::Logout(mut logout_cli)) => {
             reject_remote_mode_for_subcommand(
